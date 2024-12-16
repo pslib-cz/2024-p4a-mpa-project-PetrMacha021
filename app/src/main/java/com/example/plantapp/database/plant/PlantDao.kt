@@ -9,7 +9,7 @@ import androidx.room.Update
 @Dao
 interface PlantDao {
     @Insert
-    suspend fun insertPlant(plant: Plant): Int
+    suspend fun insertPlant(plant: Plant): Long
 
     @Query("SELECT * FROM plants")
     suspend fun getAllPlants(): List<Plant>
