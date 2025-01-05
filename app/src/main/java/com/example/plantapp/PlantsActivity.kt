@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import java.text.SimpleDateFormat
@@ -83,7 +84,7 @@ fun PlantScreen(viewModel: PlantViewModel) {
         }
     ) { innerPadding ->
         LazyColumn(
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(innerPadding).padding(8.dp, 4.dp)
         ) {
             items(viewModel.plants.value.size) { index ->
                 PlantItem(viewModel.plants.value[index])
@@ -103,13 +104,25 @@ fun PlantScreen(viewModel: PlantViewModel) {
 
 @Composable
 fun PlantItem(plant: Plant) {
+    val remainingDays = (plant.sowingDate + plant.growingTime - System.currentTimeMillis()) / (24 * 60 * 60 * 1000L)
+    val remainingDaysText = if (remainingDays < 0) {
+        "Grown"
+    } else {
+        "${remainingDays} days"
+    }
+
     Card(
         elevation = CardDefaults.cardElevation(
             defaultElevation = 6.dp
-        )
+        ),
+        modifier = Modifier.fillMaxWidth().padding(0.dp, 4.dp)
     ) {
-        Row {
-            Text(plant.name, modifier = Modifier.weight(1f))
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(text = plant.name, style = MaterialTheme.typography.titleMedium)
+            Text(text = "Sowing date: ${convertMillisToDate(plant.sowingDate)}")
+            Text(text = "Remaining time: $remainingDaysText")
         }
     }
 }
@@ -123,7 +136,8 @@ fun AddPlantDialog(
     var plantName by remember { mutableStateOf("") }
     var isError by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
-    var selectedDate by remember { mutableStateOf<Long>(System.currentTimeMillis()) }
+    var selectedDate by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var growingDays by remember { mutableStateOf("") }
 
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState(
@@ -177,7 +191,7 @@ fun AddPlantDialog(
                 OutlinedTextField(
                     value = selectedDate.let { convertMillisToDate(it) },
                     onValueChange = { },
-                    label = { Text("DOB") },
+                    label = { Text("Sowing date") },
                     placeholder = { Text("MM/DD/YYYY") },
                     trailingIcon = {
                         Icon(Icons.Default.DateRange, contentDescription = "Select date")
@@ -195,7 +209,17 @@ fun AddPlantDialog(
                         }
                 )
 
-
+                OutlinedTextField(
+                    value = growingDays,
+                    onValueChange = {
+                        growingDays = it
+                        isError = false
+                    },
+                    label = { Text("Growing time (days)") },
+                    isError = isError,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
 
                 if (showDatePicker) {
                     DatePickerModal(
@@ -221,11 +245,13 @@ fun AddPlantDialog(
             TextButton(
                 onClick = {
                     if (plantName.isNotBlank()) {
+                        val days = growingDays.toIntOrNull() ?: 0
+                        val growingTime = days * 24 * 60 * 60 * 1000L
                         onAddPlant(
                             Plant(
                                 name = plantName,
                                 sowingDate = selectedDate,
-                                growingTime = 0
+                                growingTime = growingTime
                             )
                         )
                         onDismiss()
