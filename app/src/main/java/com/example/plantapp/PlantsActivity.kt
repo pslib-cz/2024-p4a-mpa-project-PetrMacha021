@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.SortByAlpha
@@ -80,8 +81,10 @@ class PlantsActivity : ComponentActivity() {
 @Composable
 fun PlantScreen(viewModel: PlantViewModel) {
     val showAddPlantDialog = remember { mutableStateOf(false) }
-    var sortOrder by remember { mutableStateOf(SortOrder.ASCENDING) }
-    var showSortDropdown by remember { mutableStateOf(false) } // State for dropdown visibility
+    var sortType by remember { mutableStateOf(SortType.NAME) } // Default sorting by name
+    var sortOrder by remember { mutableStateOf(SortOrder.DESCENDING) } // Default ascending order
+    var showSortTypeDropdown by remember { mutableStateOf(false) } // State for sorting criteria dropdown
+    var showSortOrderDropdown by remember { mutableStateOf(false) } // State for sorting order dropdown
 
     Scaffold(
         topBar = {
@@ -89,32 +92,68 @@ fun PlantScreen(viewModel: PlantViewModel) {
                 title = { Text(text = "List of plants") },
                 actions = {
                     Box {
-                        IconButton(onClick = { showSortDropdown = true }) {
+                        IconButton(onClick = { showSortTypeDropdown = true }) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.SortByAlpha,
+                                    imageVector = Icons.Default.FilterList,
                                     contentDescription = "Sort Order"
                                 )
                             }
                         }
 
                         DropdownMenu(
-                            expanded = showSortDropdown,
-                            onDismissRequest = { showSortDropdown = false }
+                            expanded = showSortTypeDropdown,
+                            onDismissRequest = { showSortTypeDropdown = false }
+                        ) {
+                            DropdownMenuItem(
+                                onClick = {
+                                    sortType = SortType.NAME
+                                    showSortTypeDropdown = false
+                                },
+                                text = { Text("Sort by Name") }
+                            )
+                            DropdownMenuItem(
+                                onClick = {
+                                    sortType = SortType.SOWING_DATE
+                                    showSortTypeDropdown = false
+                                },
+                                text = { Text("Sort by Sowing Date") }
+                            )
+                            DropdownMenuItem(
+                                onClick = {
+                                    sortType = SortType.GROWING_TIME
+                                    showSortTypeDropdown = false
+                                },
+                                text = { Text("Sort by Growing Time") }
+                            )
+                        }
+                    }
+
+                    Box {
+                        IconButton(onClick = { showSortOrderDropdown = true }) {
+                            Icon(
+                                imageVector = Icons.Default.SortByAlpha,
+                                contentDescription = "Sort Order"
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = showSortOrderDropdown,
+                            onDismissRequest = { showSortOrderDropdown = false }
                         ) {
                             DropdownMenuItem(
                                 onClick = {
                                     sortOrder = SortOrder.ASCENDING
-                                    showSortDropdown = false
+                                    showSortOrderDropdown = false
                                 },
                                 text = { Text("Ascending") }
                             )
                             DropdownMenuItem(
                                 onClick = {
                                     sortOrder = SortOrder.DESCENDING
-                                    showSortDropdown = false
+                                    showSortOrderDropdown = false
                                 },
                                 text = { Text("Descending") }
                             )
@@ -133,19 +172,43 @@ fun PlantScreen(viewModel: PlantViewModel) {
             }
         }
     ) { innerPadding ->
-        val sortedPlants = when (sortOrder) {
-            SortOrder.ASCENDING -> viewModel.plants.value.sortedBy { it.sowingDate }
-            SortOrder.DESCENDING -> viewModel.plants.value.sortedByDescending { it.sowingDate }
+        // Sorting logic based on sortType and sortOrder
+        val sortedPlants = when (sortType) {
+            SortType.NAME -> {
+                if (sortOrder == SortOrder.ASCENDING) {
+                    viewModel.plants.value.sortedBy { it.name }
+                } else {
+                    viewModel.plants.value.sortedByDescending { it.name }
+                }
+            }
+            SortType.SOWING_DATE -> {
+                if (sortOrder == SortOrder.ASCENDING) {
+                    viewModel.plants.value.sortedBy { it.sowingDate }
+                } else {
+                    viewModel.plants.value.sortedByDescending { it.sowingDate }
+                }
+            }
+            SortType.GROWING_TIME -> {
+                if (sortOrder == SortOrder.ASCENDING) {
+                    viewModel.plants.value.sortedBy { it.sowingDate + it.growingTime }
+                } else {
+                    viewModel.plants.value.sortedByDescending { it.sowingDate + it.growingTime }
+                }
+            }
         }
 
+        // Display the sorted plants
         LazyColumn(
-            modifier = Modifier.padding(innerPadding).padding(8.dp, 4.dp)
+            modifier = Modifier
+                .padding(innerPadding)
+                .padding(8.dp, 4.dp)
         ) {
             items(sortedPlants.size) { index ->
                 PlantItem(sortedPlants[index])
             }
         }
 
+        // Add Plant Dialog
         if (showAddPlantDialog.value) {
             AddPlantDialog(
                 onDismiss = { showAddPlantDialog.value = false },
@@ -170,7 +233,9 @@ fun PlantItem(plant: Plant) {
         elevation = CardDefaults.cardElevation(
             defaultElevation = 6.dp
         ),
-        modifier = Modifier.fillMaxWidth().padding(0.dp, 4.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(0.dp, 4.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -256,7 +321,8 @@ fun AddPlantDialog(
                         .pointerInput(selectedDate) {
                             awaitEachGesture {
                                 awaitFirstDown(pass = PointerEventPass.Initial)
-                                val upEvent = waitForUpOrCancellation(pass = PointerEventPass.Initial)
+                                val upEvent =
+                                    waitForUpOrCancellation(pass = PointerEventPass.Initial)
                                 if (upEvent != null) {
                                     showDatePicker = true
                                 }
