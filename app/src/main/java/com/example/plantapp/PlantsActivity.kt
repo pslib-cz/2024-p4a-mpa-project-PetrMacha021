@@ -1,6 +1,7 @@
 package com.example.plantapp
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -11,19 +12,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredWidth
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.SortByAlpha
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -46,14 +43,17 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import com.example.plantapp.database.category.Category
+import com.example.plantapp.database.category.CategoryRepository
+import com.example.plantapp.database.category.CategoryViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -68,10 +68,12 @@ class PlantsActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            val repository = PlantRepository(MyApp.database.plantDao())
-            val viewModel = PlantViewModel(repository)
+            val plantRepository = PlantRepository(MyApp.database.plantDao())
+            val categoryRepository = CategoryRepository(MyApp.database.categoryDao())
+            val plantViewModel = PlantViewModel(plantRepository)
+            val categoryViewModel = CategoryViewModel(categoryRepository)
             PlantAppTheme {
-                PlantScreen(viewModel)
+                PlantScreen(plantViewModel, categoryViewModel)
             }
         }
     }
@@ -79,7 +81,7 @@ class PlantsActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlantScreen(viewModel: PlantViewModel) {
+fun PlantScreen(plantViewModel: PlantViewModel, categoryViewModel: CategoryViewModel) {
     val showAddPlantDialog = remember { mutableStateOf(false) }
     var sortType by remember { mutableStateOf(SortType.NAME) } // Default sorting by name
     var sortOrder by remember { mutableStateOf(SortOrder.DESCENDING) } // Default ascending order
@@ -176,23 +178,23 @@ fun PlantScreen(viewModel: PlantViewModel) {
         val sortedPlants = when (sortType) {
             SortType.NAME -> {
                 if (sortOrder == SortOrder.ASCENDING) {
-                    viewModel.plants.value.sortedBy { it.name }
+                    plantViewModel.plants.value.sortedBy { it.name }
                 } else {
-                    viewModel.plants.value.sortedByDescending { it.name }
+                    plantViewModel.plants.value.sortedByDescending { it.name }
                 }
             }
             SortType.SOWING_DATE -> {
                 if (sortOrder == SortOrder.ASCENDING) {
-                    viewModel.plants.value.sortedBy { it.sowingDate }
+                    plantViewModel.plants.value.sortedBy { it.sowingDate }
                 } else {
-                    viewModel.plants.value.sortedByDescending { it.sowingDate }
+                    plantViewModel.plants.value.sortedByDescending { it.sowingDate }
                 }
             }
             SortType.GROWING_TIME -> {
                 if (sortOrder == SortOrder.ASCENDING) {
-                    viewModel.plants.value.sortedBy { it.sowingDate + it.growingTime }
+                    plantViewModel.plants.value.sortedBy { it.sowingDate + it.growingTime }
                 } else {
-                    viewModel.plants.value.sortedByDescending { it.sowingDate + it.growingTime }
+                    plantViewModel.plants.value.sortedByDescending { it.sowingDate + it.growingTime }
                 }
             }
         }
@@ -204,7 +206,7 @@ fun PlantScreen(viewModel: PlantViewModel) {
                 .padding(8.dp, 4.dp)
         ) {
             items(sortedPlants.size) { index ->
-                PlantItem(sortedPlants[index])
+                PlantItem(sortedPlants[index], categoryViewModel.categories.value.first { it.id == sortedPlants[index].categoryId })
             }
         }
 
@@ -213,21 +215,23 @@ fun PlantScreen(viewModel: PlantViewModel) {
             AddPlantDialog(
                 onDismiss = { showAddPlantDialog.value = false },
                 onAddPlant = { item ->
-                    viewModel.addPlant(item)
-                }
+                    plantViewModel.addPlant(item)
+                },
+                categories = categoryViewModel.categories.value
             )
         }
     }
 }
 
 @Composable
-fun PlantItem(plant: Plant) {
+fun PlantItem(plant: Plant, category: Category) {
     val remainingDays = (plant.sowingDate + plant.growingTime - System.currentTimeMillis()) / (24 * 60 * 60 * 1000L)
     val remainingDaysText = if (remainingDays < 0) {
         "Grown"
     } else {
         "${remainingDays} days"
     }
+    val categoryName =
 
     Card(
         elevation = CardDefaults.cardElevation(
@@ -243,6 +247,7 @@ fun PlantItem(plant: Plant) {
             Text(text = plant.name, style = MaterialTheme.typography.titleMedium)
             Text(text = "Sowing date: ${convertMillisToDate(plant.sowingDate)}")
             Text(text = "Remaining time: $remainingDaysText")
+            Text(text = "Category: ${category.name}")
         }
     }
 }
@@ -251,13 +256,15 @@ fun PlantItem(plant: Plant) {
 @Composable
 fun AddPlantDialog(
     onDismiss: () -> Unit,
-    onAddPlant: (Plant) -> Unit
+    onAddPlant: (Plant) -> Unit,
+    categories: List<Category>
 ) {
     var plantName by remember { mutableStateOf("") }
     var isError by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var growingDays by remember { mutableStateOf("") }
+    var selectedCategoryId by remember { mutableLongStateOf(1) }
 
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState(
@@ -342,6 +349,8 @@ fun AddPlantDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                CategoryDropdown(categories.first { it.id == selectedCategoryId }, onItemSelected = { selectedCategoryId = it.id }, categories)
+
                 if (showDatePicker) {
                     DatePickerModal(
                         onDateSelected = {
@@ -372,7 +381,8 @@ fun AddPlantDialog(
                             Plant(
                                 name = plantName,
                                 sowingDate = selectedDate,
-                                growingTime = growingTime
+                                growingTime = growingTime,
+                                categoryId = selectedCategoryId
                             )
                         )
                         onDismiss()
@@ -390,6 +400,54 @@ fun AddPlantDialog(
             }
         }
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CategoryDropdown(
+    selectedValue: Category,
+    onItemSelected: (Category) -> Unit,
+    categories: List<Category>
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = {
+                expanded = !expanded
+            }
+        ) {
+            OutlinedTextField(
+                label = {
+                    Text("Category")
+                },
+                value = selectedValue.name,
+                onValueChange = {},
+                readOnly = true,
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                modifier = Modifier.menuAnchor(),
+            )
+
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                categories.forEach { item ->
+                    DropdownMenuItem(
+                        text = { Text(item.name) },
+                        onClick = {
+                            onItemSelected(item)
+                            Log.d("app", item.name)
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+    }
 }
 
 fun convertMillisToDate(millis: Long): String {

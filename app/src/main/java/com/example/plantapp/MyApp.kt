@@ -3,6 +3,7 @@ package com.example.plantapp
 import android.app.Application
 import androidx.room.Room
 import com.example.plantapp.database.AppDatabase
+import com.example.plantapp.database.AppDatabaseCallback
 
 class MyApp: Application() {
     companion object {
@@ -16,6 +17,8 @@ class MyApp: Application() {
         database = Room.databaseBuilder(
             applicationContext,
             AppDatabase::class.java, "database"
-        ).build()
+        )
+            .addCallback(AppDatabaseCallback())
+            .build()
     }
 }

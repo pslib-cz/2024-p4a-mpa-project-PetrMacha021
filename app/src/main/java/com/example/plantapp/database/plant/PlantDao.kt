@@ -9,17 +9,17 @@ import androidx.room.Update
 @Dao
 interface PlantDao {
     @Insert
-    suspend fun insertPlant(plant: Plant): Long
+    suspend fun insert(plant: Plant): Long
 
     @Query("SELECT * FROM plants")
-    suspend fun getAllPlants(): List<Plant>
+    suspend fun getAll(): List<Plant>
 
     @Query("SELECT * FROM plants WHERE id = :id")
-    suspend fun getPlant(id: Int): Plant?
+    suspend fun get(id: Int): Plant?
 
     @Update
-    suspend fun updatePlant(plant: Plant)
+    suspend fun update(plant: Plant)
 
     @Delete
-    suspend fun deletePlant(plant: Plant)
+    suspend fun delete(plant: Plant)
 }

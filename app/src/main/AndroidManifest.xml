@@ -19,9 +19,6 @@
             android:label="@string/title_activity_plants"
             android:theme="@style/Theme.PlantApp" />
         <activity
-            android:name=".MainActivity2"
-            android:exported="false" />
-        <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
