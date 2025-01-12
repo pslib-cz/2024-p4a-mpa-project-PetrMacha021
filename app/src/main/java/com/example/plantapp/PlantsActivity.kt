@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.SortByAlpha
 import androidx.compose.material3.AlertDialog
@@ -84,15 +85,54 @@ class PlantsActivity : ComponentActivity() {
 fun PlantScreen(plantViewModel: PlantViewModel, categoryViewModel: CategoryViewModel) {
     val showAddPlantDialog = remember { mutableStateOf(false) }
     var sortType by remember { mutableStateOf(SortType.NAME) } // Default sorting by name
-    var sortOrder by remember { mutableStateOf(SortOrder.DESCENDING) } // Default ascending order
     var showSortTypeDropdown by remember { mutableStateOf(false) } // State for sorting criteria dropdown
+    var sortOrder by remember { mutableStateOf(SortOrder.DESCENDING) } // Default ascending order
     var showSortOrderDropdown by remember { mutableStateOf(false) } // State for sorting order dropdown
+    var selectedCategory by remember { mutableStateOf<Category?>(null) } // State for category filter dropdown
+    var showSelectedCategory by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(text = "List of plants") },
                 actions = {
+                    // Category filter
+                    Box {
+                        IconButton(onClick = { showSelectedCategory = true }) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.FilterAlt,
+                                    contentDescription = "Filter Category"
+                                )
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = showSelectedCategory,
+                            onDismissRequest = { showSelectedCategory = false }
+                        ) {
+                            DropdownMenuItem(
+                                onClick = {
+                                    selectedCategory = null
+                                    showSelectedCategory = false
+                                },
+                                text = { Text("All Categories") }
+                            )
+                            categoryViewModel.categories.value.forEach { category ->
+                                DropdownMenuItem(
+                                    onClick = {
+                                        selectedCategory = category
+                                        showSelectedCategory = false
+                                    },
+                                    text = { Text(category.name) }
+                                )
+                            }
+                        }
+                    }
+
+                    // Sort type
                     Box {
                         IconButton(onClick = { showSortTypeDropdown = true }) {
                             Row(
@@ -133,6 +173,7 @@ fun PlantScreen(plantViewModel: PlantViewModel, categoryViewModel: CategoryViewM
                         }
                     }
 
+                    // Sort order
                     Box {
                         IconButton(onClick = { showSortOrderDropdown = true }) {
                             Icon(
@@ -174,27 +215,32 @@ fun PlantScreen(plantViewModel: PlantViewModel, categoryViewModel: CategoryViewM
             }
         }
     ) { innerPadding ->
-        // Sorting logic based on sortType and sortOrder
+        val filteredPlants = if (selectedCategory != null) {
+            plantViewModel.plants.value.filter { it.categoryId == selectedCategory?.id }
+        } else {
+            plantViewModel.plants.value
+        }
+
         val sortedPlants = when (sortType) {
             SortType.NAME -> {
                 if (sortOrder == SortOrder.ASCENDING) {
-                    plantViewModel.plants.value.sortedBy { it.name }
+                    filteredPlants.sortedBy { it.name }
                 } else {
-                    plantViewModel.plants.value.sortedByDescending { it.name }
+                    filteredPlants.sortedByDescending { it.name }
                 }
             }
             SortType.SOWING_DATE -> {
                 if (sortOrder == SortOrder.ASCENDING) {
-                    plantViewModel.plants.value.sortedBy { it.sowingDate }
+                    filteredPlants.sortedBy { it.sowingDate }
                 } else {
-                    plantViewModel.plants.value.sortedByDescending { it.sowingDate }
+                    filteredPlants.sortedByDescending { it.sowingDate }
                 }
             }
             SortType.GROWING_TIME -> {
                 if (sortOrder == SortOrder.ASCENDING) {
-                    plantViewModel.plants.value.sortedBy { it.sowingDate + it.growingTime }
+                    filteredPlants.sortedBy { it.sowingDate + it.growingTime }
                 } else {
-                    plantViewModel.plants.value.sortedByDescending { it.sowingDate + it.growingTime }
+                    filteredPlants.sortedByDescending { it.sowingDate + it.growingTime }
                 }
             }
         }
@@ -231,7 +277,6 @@ fun PlantItem(plant: Plant, category: Category) {
     } else {
         "${remainingDays} days"
     }
-    val categoryName =
 
     Card(
         elevation = CardDefaults.cardElevation(
@@ -440,7 +485,6 @@ fun CategoryDropdown(
                         text = { Text(item.name) },
                         onClick = {
                             onItemSelected(item)
-                            Log.d("app", item.name)
                             expanded = false
                         }
                     )
